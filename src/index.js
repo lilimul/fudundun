@@ -9,6 +9,7 @@ ReactDOM.render(
     <div>hello</div>
     <div>你好</div>
     <App />
+    <div>goddbye</div>
   </React.StrictMode>,
   document.getElementById('root')
 );
