@@ -32,7 +32,8 @@ const App = () => {
         rotate:0,
         filter:"Origin",
         scale:1,
-    }
+    },
+    backgroundColor: '#ffffff'
   }),[]);
   let Option_state =useMemo(
     () => ( {
@@ -85,7 +86,8 @@ const App = () => {
   const draw =(ref,state)=>{
     const canvas = ref.current
     const context = canvas.getContext('2d')
-    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = state.backgroundColor;
+    context.fillRect(0, 0, canvas.width, canvas.height);
     let imgWidth= 250*state.img.scale;
     let imgHeight=  250*state.img.scale * state.img.obj.height / state.img.obj.width;
     if(state.img.rotate!==0){
@@ -150,6 +152,10 @@ const ScaleSlide = props=>{
 const handleImgChange= (value)=>{
   initMask(value,canvasState);
 }
+const handleBackgroundColorChange = (e) => {
+  canvasState.backgroundColor = e.target.value;
+  setCanvasState({...canvasState});
+}
 const ImgInputer = props=>{
   return (
     <Input.Group compact>
@@ -171,6 +177,10 @@ const ImgInputer = props=>{
     <Canvas reff={canvasRef} canvas_state={canvasState} option_state={demo} apple={apple} />
     <Button type="primary">导出</Button>
     <ScaleSlide min={init_config.scale.min} max={init_config.scale.max} value={canvasState.img.scale} step={init_config.scale.step} handleChange={handleScale}/>  
+    <div className="background-color-picker">
+      <Text>背景颜色：</Text>
+      <input type="color" value={canvasState.backgroundColor} onChange={handleBackgroundColorChange} />
+    </div>
     <ImgInputer/>
     <Text>
     {/* {JSON.stringify(demo)}
