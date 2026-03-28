@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import {useEffect,useMemo,useRef} from 'react'
-import { Button,Typography,Input,Select  } from 'antd';
+import { Button,Typography,Input,Select, Upload, message, Spin  } from 'antd';
 import { Slider } from 'antd';
-import { FrownOutlined, SmileOutlined } from '@ant-design/icons';
+import { FrownOutlined, SmileOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import './App.css';
 import {Canvas} from './components/Canvas';
 const { Text } = Typography;
 const { Option } = Select;
 
+const API_BASE_URL = 'http://localhost:5000';
 
 const App = () => {
   const canvasRef = useRef(null)
+  const [loading, setLoading] = useState(false);
+  const [composedImageUrl, setComposedImageUrl] = useState('');
   let canvas_state = useMemo(
     () => ( {
     size :{
@@ -77,8 +80,8 @@ const App = () => {
       setCanvasState({...canvasState});
   }
   function handleScale(newScale){
-      newScale=handleScale>init_config.scale.max?init_config.scale.max:newScale;
-      newScale=handleScale<init_config.scale.min?init_config.scale.min:newScale;
+      newScale=newScale>init_config.scale.max?init_config.scale.max:newScale;
+      newScale=newScale<init_config.scale.min?init_config.scale.min:newScale;
       canvasState.img.scale=newScale;
       setCanvasState({...canvasState});
   }
@@ -120,13 +123,9 @@ const App = () => {
     draw(canvasRef,canvasState);
     drawMask(canvasRef,canvasState);
     }
-    //const canvasBox = canvas.getBoundingClientRect();
-
-    //setSemo(Option_state);
 }, [demo,canvasState])
 useEffect(() => {
   initMask('https://s2.loli.net/2022/02/10/XOs3h761HNgt9dW.png',canvasState);
-  //https://s2.loli.net/2022/02/10/XOs3h761HNgt9dW.png 
   canvasState.img.obj=new Image();
   canvasState.img.obj.onload = function() {
     draw(canvasRef,canvas_state);
@@ -134,6 +133,81 @@ useEffect(() => {
   canvasState.img.obj.src = 'http://5b0988e595225.cdn.sohucs.com/images/20190418/729e09c154d24c44a0e655b706f77bb3.jpeg';
   setCanvasState({...canvasState});
 }, []);
+
+const handleCompose = async () => {
+  setLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/compose-url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        baseUrl: canvasState.img.src || 'http://5b0988e595225.cdn.sohucs.com/images/20190418/729e09c154d24c44a0e655b706f77bb3.jpeg',
+        maskUrl: canvasState.mask.src || 'https://s2.loli.net/2022/02/10/XOs3h761HNgt9dW.png',
+        x: canvasState.img.position.x,
+        y: canvasState.img.position.y,
+        scale: canvasState.img.scale,
+        rotate: canvasState.img.rotate,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      setComposedImageUrl(`${API_BASE_URL}${data.url}`);
+      message.success('图片合成成功！');
+    } else {
+      message.error('图片合成失败');
+    }
+  } catch (error) {
+    console.error('Compose error:', error);
+    message.error('合成失败，请确保后端服务已启动');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleExport = () => {
+  if (composedImageUrl) {
+    const link = document.createElement('a');
+    link.href = composedImageUrl;
+    link.download = 'composed-image.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } else {
+    message.info('请先点击合成按钮');
+  }
+};
+
+const handleBaseImageUpload = async (file) => {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      canvasState.img.src = `${API_BASE_URL}${data.url}`;
+      canvasState.img.obj = new Image();
+      canvasState.img.obj.onload = () => {
+        draw(canvasRef, canvasState);
+      };
+      canvasState.img.obj.src = canvasState.img.src;
+      setCanvasState({...canvasState});
+      message.success('基础图片上传成功！');
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    message.error('图片上传失败');
+  }
+  return false;
+};
+
 const ScaleSlide = props=>{
   const {min,max,value,handleChange} = props;
   const mid = ((max - min) / 2).toFixed(5);
@@ -148,12 +222,16 @@ const ScaleSlide = props=>{
   )
 }
 const handleImgChange= (value)=>{
+  canvasState.mask.src = value;
   initMask(value,canvasState);
 }
 const ImgInputer = props=>{
   return (
-    <Input.Group compact>
-      <Select defaultValue={'disabled'} onChange={handleImgChange}>
+    <Input.Group compact style={{ marginBottom: '20px' }}>
+      <Upload beforeUpload={handleBaseImageUpload} showUploadList={false}>
+        <Button icon={<UploadOutlined />}>上传基础图片</Button>
+      </Upload>
+      <Select defaultValue={'disabled'} onChange={handleImgChange} style={{ width: 200, marginLeft: 10 }}>
       <Option value="disabled" disabled>
         选择你的dun
       </Option>
@@ -161,21 +239,30 @@ const ImgInputer = props=>{
         <Option value={item.src} key={item.src}>{item.name}</Option>
         ))}
       </Select>
-    <Input style={{ width: 'calc(100% - 500px)' }} defaultValue="输入照片链接" />
-    <Button type="primary">合成</Button>
+    <Button type="primary" onClick={handleCompose} loading={loading} style={{ marginLeft: 10 }}>合成</Button>
   </Input.Group>
   )
 };
   return (
   <div className="App">
-    <Canvas reff={canvasRef} canvas_state={canvasState} option_state={demo} apple={apple} />
-    <Button type="primary">导出</Button>
-    <ScaleSlide min={init_config.scale.min} max={init_config.scale.max} value={canvasState.img.scale} step={init_config.scale.step} handleChange={handleScale}/>  
-    <ImgInputer/>
-    <Text>
-    {/* {JSON.stringify(demo)}
-    {JSON.stringify(canvasState)} */}
-    </Text>
+    <Spin spinning={loading}>
+      <Canvas reff={canvasRef} canvas_state={canvasState} option_state={demo} apple={apple} />
+      <div style={{ marginTop: 20 }}>
+        <Button type="primary" onClick={handleExport} icon={<DownloadOutlined />} disabled={!composedImageUrl}>导出合成图片</Button>
+      </div>
+      {composedImageUrl && (
+        <div style={{ marginTop: 20 }}>
+          <h3>合成结果预览：</h3>
+          <img src={composedImageUrl} alt="Composed" style={{ maxWidth: '300px', border: '1px solid #ddd' }} />
+        </div>
+      )}
+      <ScaleSlide min={init_config.scale.min} max={init_config.scale.max} value={canvasState.img.scale} step={init_config.scale.step} handleChange={handleScale}/>  
+      <ImgInputer/>
+      <Text>
+      {/* {JSON.stringify(demo)}
+      {JSON.stringify(canvasState)} */}
+      </Text>
+    </Spin>
   </div>
 )};
 
