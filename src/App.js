@@ -168,6 +168,7 @@ const ImgInputer = props=>{
 };
   return (
   <div className="App">
+    <h1>你好</h1>
     <Canvas reff={canvasRef} canvas_state={canvasState} option_state={demo} apple={apple} />
     <Button type="primary">导出</Button>
     <ScaleSlide min={init_config.scale.min} max={init_config.scale.max} value={canvasState.img.scale} step={init_config.scale.step} handleChange={handleScale}/>  
